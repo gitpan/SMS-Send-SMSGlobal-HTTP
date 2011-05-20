@@ -24,7 +24,6 @@ no_index:
     - t
 requires:
   Class::Accessor: 0
-  Crypt::SSLeay: 0
   HTTP::Request::Common: 0
   LWP::UserAgent: 0
   SMS::Send::Driver: 0
@@ -33,4 +32,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: git://github.com/dwarring/SMS-Send-SMSGlobal-HTTP.git
-version: 0.01
+version: 0.02

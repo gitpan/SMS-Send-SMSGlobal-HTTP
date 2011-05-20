@@ -7,7 +7,6 @@ use parent 'SMS::Send::Driver', 'Class::Accessor';
 use HTTP::Request::Common qw(POST);
 
 require LWP::UserAgent;
-require Crypt::SSLeay;
 
 sub __fields {
     return qw(action text to _user _password _from _maxsplit _scheduledatetime
@@ -23,16 +22,16 @@ SMS::Send::SMSGlobal::HTTP - SMS::Send SMSGlobal.com Driver
 
 =head1 VERSION
 
-VERSION 0.01
+VERSION 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 =head1 DESCRIPTION
 
-SMS::Send::SMSGlobal::HTTP is a simple driver for L<SMS::Send> for sending messages via www.smsglobal.com
-using the HTTP/HTTPS CGI gateway.
+SMS::Send::SMSGlobal::HTTP is a simple driver for L<SMS::Send> for sending
+messages via www.smsglobal.com using the HTTP/HTTPS CGI gateway.
 
 =head1 SUBROUTINES/METHODS
 
@@ -188,9 +187,11 @@ sub send_sms {
 
     foreach (sort keys %$msg) {
 	next if m{^__};
-	my $val = $msg->{$_};
-	(my $key = $_) =~ s{^_}{};
-	$http_params{$key} = $val;
+
+	if (defined (my $val = $msg->{$_}) ) {
+	    (my $key = $_) =~ s{^_}{};
+	    $http_params{$key} = $val;
+	}
     }
 
     if (ref $http_params{scheduledatetime} ) {
