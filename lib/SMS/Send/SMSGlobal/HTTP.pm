@@ -10,7 +10,7 @@ require LWP::UserAgent;
 
 sub __fields {
     return qw(action text to _user _password _from _maxsplit _scheduledatetime
-              _api _userfield __transport __verbose __ua __method __address)
+              _api _userfield __transport __verbose __ua __address)
 };
 
 use fields __PACKAGE__->__fields;
@@ -22,16 +22,16 @@ SMS::Send::SMSGlobal::HTTP - SMS::Send SMSGlobal.com Driver
 
 =head1 VERSION
 
-VERSION 0.02
+VERSION 0.03
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 =head1 DESCRIPTION
 
 SMS::Send::SMSGlobal::HTTP is a simple driver for L<SMS::Send> for sending
-messages via www.smsglobal.com using the HTTP/HTTPS CGI gateway.
+messages via www.smsglobal.com using the SMS Global HTTP API.
 
 =head1 SUBROUTINES/METHODS
 
@@ -40,9 +40,10 @@ messages via www.smsglobal.com using the HTTP/HTTPS CGI gateway.
     use SMS::Send;
 
     my $sender = SMS::Send->new('SMSGlobal::HTTP',
-               _user      => 'my-username',
-               _password  => 'my-password',
-               __verbose =>  1
+               _user       => 'my-username',
+               _password   => 'my-password',
+               __transport => 'https',
+               __verbose   =>  1
            );
 
 =cut
@@ -55,7 +56,7 @@ sub new {
     my $self = fields::new ($class);
 
     #
-    # Allow comman _user and _password aliases; just to ease interchange
+    # Allow _user and _password aliases; just to ease interchange
     # with other sms drivers
     #
 
@@ -74,16 +75,6 @@ sub new {
 
     $self->{__ua} ||= LWP::UserAgent->new;
 
-    $self->{__method} ||= 'post';
-    die "__method must be 'get' or 'post'"
-	unless $self->{__method} =~ m{^(get|post)$};
-
-    for ($self->{__transport} ) {
-	$_ ||= 'https';
-	die "__transport must be 'http' or 'https'"
-	    unless m{^https?$};
-    };
-
     return $self;
 }
 
@@ -98,7 +89,7 @@ sub new {
                              ->add(minutes => 5)
     );
 
-=head3 HTTP Options
+=head3 Basic Options
 
 =over 4
 
@@ -118,8 +109,8 @@ Sender's mobile number. Where to send replies.
 
 =item C<_maxsplit> (default 3)
 
-The maximum number of 160 character transmisson chunks. You may need to
-increase this to send longer messages.
+The maximum number of 150 character (approx) transmisson chunks. You may need
+to increase this to send longer messages.
 
 Note: Each chunk is metered as a separate message.
 
@@ -136,40 +127,43 @@ your SMSGlobal account preferences.
 
 =head3 HTTP-2WAY Options
 
-Some extra options, as described in L<http://www.smsglobal.com/docs/HTTP-2WAY.pdf>:
+Some extra options for handling SMS replies. These are useful when you are
+using dedicated incoming numbers, with your account. See
+L<http://www.smsglobal.com/docs/HTTP-2WAY.pdf>:
 
 =over 4
 
 =item C<_api>
 
-enables 2-way message (default: 1 enabled)
+Set to 0, to disabled two messaging. The default is 1 (enabled).
 
 =item C<_userfield>
 
-custom field to store internal IDs or other information (Maximum of
+Custom field to store internal IDs or other information (Maximum of
 255 characters)
 
 =back
 
-=head3 Internal Options
+=head3 Configuration Options
 
 =over 4
-
-=item C<__verbose>
-
-enable tracing
-
-=item C<__transport>
-
-transport to use; 'https' (default) or 'http'.
-
-=item C<__method>
-
-http method to use 'post' (default) or 'get'
 
 =item C<__address> 
 
 SMSGlobal gateway address (default: 'http://smsglobal.com/http-api.php');
+
+=item C<__transport>
+
+Transport to use: 'http' (default) or 'https'.
+
+Transport over 'https' is encrypted and more secure. However, this option
+requires either L<Crypt::SSLeay> or L<IO::Socket::SSL> to be installed. More
+information is available at
+<http://search.cpan.org/dist/libwww-perl/README.SSL>.
+
+=item C<__verbose>
+
+Set to true to enable tracing.
 
 =back
 
@@ -224,21 +218,24 @@ sub send_sms {
     }
 
     my $address = $msg->__address || 'http://smsglobal.com/http-api.php';
-    my $transport = $msg->__transport || 'https';
-    my $method = $msg->__method || 'post';
 
-    if ($transport eq 'http') {
-	$address =~ s{^http:}{https:};
+
+    if (my $transport = $msg->__transport) {
+
+	if ($transport eq 'http') {
+	    $address =~ s{^https:}{http:};
+	}
+	elsif ($transport eq 'https') {
+	    $address =~ s{^http:}{https:};
+	}
+	else {
+	    die "transport '$transport': not 'http' or 'https'" 
+	}
     }
-    else {
-	$address =~ s{^https:}{http:};
-    }
 
-    print "Address : $address ($method)" if $msg->__verbose;
+    print "Address : $address" if $msg->__verbose;
 
-    my $req =  ($method =~ m{get}i)
-	? GET($address => [ %{ \%http_params } ])
-	: POST($address => [ %{ \%http_params } ]);
+    my $req = POST($address => [ %{ \%http_params } ]);
 
     my $res = eval {
 	local $SIG{__DIE__};
