@@ -24,11 +24,11 @@ SMS::Send::SMSGlobal::HTTP - SMS::Send SMSGlobal.com Driver
 
 =head1 VERSION
 
-VERSION 0.05
+VERSION 0.06
 
 =cut
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 =head1 DESCRIPTION
 
@@ -85,7 +85,7 @@ sub new {
     my $sent = $sender->send_sms(
         to        => '+61 4 8799 9999',
         text      => 'Go to the window!',
-        _from     => '+61 4 8811 1111',
+        _from     => 'Clang',
         _scheduledtime => DateTime
                              ->now(time_zone => 'Australia/Melbourne')
                              ->add(minutes => 5)
@@ -97,17 +97,21 @@ sub new {
 
 =item C<to>
 
-The recipient number, formatted as +<CountryCode><LocalNumber>
+The recipient number. This can either be an international number (prefixed
+with 'C<+>') or an local number (with a leading C<0>).
+
+In the case of a local number, the country will be dertimined by your
+C<Default SMS Country> Locale Setting in your account preferences.
 
 =item C<text>
 
-The text of the message. Note that that longer messages will
-be split sent in chunks of 160 characters. You may also need to increase
-C<_maxsplit> to send longer messages.
+The text of the message.
 
 =item C<_from>
 
-Sender's mobile number. Where to send replies.
+Sets the from caller-ID. This can either be a reply telephone number, or an
+alphanumeric identifier matching ^[0-9a-zA-Z_]+$. For details. see
+http://www.routomessaging.com/dynamic-sender-id-service.pmx .
 
 =item C<_maxsplit> (default 3)
 
@@ -196,20 +200,29 @@ sub send_sms {
 	#
 	for ( $http_params{scheduledatetime} ) {
 	    $_ = $_->ymd('-') .' '.$_->hms(':')
-		if (eval{
+		if (ref && eval{
 		    local $SIG{__DIE__};
 		    $_->can('ymd') && $_->can('hms')
 		    })
 	}
     }
 
-    for (qw(to from)) {
-	#
-	# tidy up from and to numbers
-	#
-	next unless defined $http_params{$_};
+    if ( defined $http_params{to} ) {
 
-	$http_params{$_} =~ s{^\+}{}
+	$http_params{to} = join(',', @{ $http_params{to} })
+	    if (ref( $http_params{to} || '') eq 'ARRAY');
+	#
+	# smsglobl/http will accept 'to' as a comma-separated list of
+	# telephone numbers. Omit all but commas and alphanumerics.
+	#
+	$http_params{to} =~ s{[^\w,]}{}g;
+    }
+
+    if ( defined $http_params{from} ) {
+	#
+	# restrict 'from' to an alphanumeric caller-ID
+	#
+	$http_params{from} =~ s{[^\w]}{}g;
     }
 
     if ($msg->__verbose) {
@@ -220,7 +233,6 @@ sub send_sms {
     }
 
     my $address = $msg->__address || 'http://smsglobal.com/http-api.php';
-
 
     if (my $transport = $msg->__transport) {
 
@@ -271,6 +283,20 @@ in L<http://www.smsglobal.com/docs/HTTP-2WAY.pdf> and L<http://www.smsglobal.com
 There are other API's available (L<http://www.smsglobal.com/en-au/technology/developers.php>). Among the more fully featured
 is the SOAP interface (L<http://www.smsglobal.com/docs/SOAP.pdf>).
 
+Also note that sending to a list of recipients is possible, but
+currently requires direct use of this driver, which can accept either a comma
+separated list, or an array reference to recipient mobile numbers.
+
+    my $driver = SMS::Send::SMSGlobal::HTTP->new(
+        _user => $sms_login,
+        _password => $sms_pass,
+        __verbose => 1,
+        __transport => 'https',
+    );
+
+   my $sent = $driver->send_sms( _from => $caller_id,
+                                 to => \@recipient_mobile_nos );
+
 Please report any bugs or feature requests to C<bug-sms-send-au-smsglobal at rt.cpan.org>, or through
 the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=SMS-Send-SMSGlobal-HTTP>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
@@ -281,7 +307,6 @@ automatically be notified of progress on your bug as I make changes.
 You can find documentation for this module with the perldoc command.
 
     perldoc SMS::Send::SMSGlobal::HTTP
-
 
 You can also look for information at:
 
