@@ -6,13 +6,13 @@ use strict;
 use 5.006;
 
 use parent 'SMS::Send::Driver', 'Class::Accessor';
-use HTTP::Request::Common qw(POST);
 
 require LWP::UserAgent;
+use HTTP::Request::Common qw(POST);
 
 sub __fields {
     return qw(action text to _user _password _from _maxsplit _scheduledatetime
-              _api _userfield __transport __verbose __ua __address)
+              _api _userfield __transport __verbose __ua __address __responses)
 };
 
 use fields __PACKAGE__->__fields;
@@ -24,11 +24,11 @@ SMS::Send::SMSGlobal::HTTP - SMS::Send SMSGlobal.com Driver
 
 =head1 VERSION
 
-VERSION 0.06
+VERSION 0.07
 
 =cut
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 =head1 DESCRIPTION
 
@@ -98,7 +98,7 @@ sub new {
 =item C<to>
 
 The recipient number. This can either be an international number (prefixed
-with 'C<+>') or an local number (with a leading C<0>).
+with C<+>) or an local number (with a leading C<0>).
 
 In the case of a local number, the country will be dertimined by your
 C<Default SMS Country> Locale Setting in your account preferences.
@@ -141,7 +141,7 @@ L<http://www.smsglobal.com/docs/HTTP-2WAY.pdf>:
 
 =item C<_api>
 
-Set to 0, to disabled two messaging. The default is 1 (enabled).
+Set to 0, to disabled two-way messaging. The default is 1 (enabled).
 
 =item C<_userfield>
 
@@ -178,6 +178,8 @@ Set to true to enable tracing.
 sub send_sms {
     my $self = shift;
     my %opt = @_;
+
+    $self->__responses( [] );	
 
     my $msg = ref($self)->new( %$self, %opt );
 
@@ -251,41 +253,49 @@ sub send_sms {
 
     my $req = POST($address => [ %{ \%http_params } ]);
 
-    my $res = eval {
+    my $response = eval {
 	local $SIG{__DIE__};
 	$msg->__ua->request($req);
     };
 
-    warn $@ if $@;
+    die $@ if $@;
+    die "unable to get response"
+	unless $response;
 
     if ($msg->__verbose ) {
 	
-	print STDERR "**Status**\n",$res->status_line,"\n";
-	print STDERR "**Headers**\n",$res->headers_as_string,"\n";
-	print STDERR "**Content**\n",$res->content,"\n";
+	print STDERR "**Status**\n",$response->status_line,"\n";
+	print STDERR "**Headers**\n",$response->headers_as_string,"\n";
+	print STDERR "**Content**\n",$response->content,"\n";
     }
 
-    my $success = $res->is_success
-	&& $res->content =~ m{^(OK|SMSGLOBAL DELAY)};
-	
-    return $success;
+    my $sent = 0;
+
+    if ( $response->is_success ) {
+
+	my @responses = split (/[\n\r]+/, $response->content);
+
+	foreach (@responses) {
+	    push ( @{ $self->__responses }, $_ );
+
+	    if ( m{^(OK|SMSGLOBAL DELAY)} ) {
+		$sent++;
+	    }
+	}
+    }
+    else {
+	die $response->status_line;
+    }
+
+    return $sent;
 }
 
-=head1 AUTHOR
+=head2 Sending SMS to Multiple Recipients
 
-David Warrring, C<< <david.warring at gmail.com> >>
+It is possible to specify multiple recipients in a request. However, this
+requires direct use of the C<SMS::Send::SMSGlobal::HTTP> driver:
 
-=head1 BUGS AND LIMITATIONS
-
-This module only attempts to implement the frugal HTTP/S commands as described
-in L<http://www.smsglobal.com/docs/HTTP-2WAY.pdf> and L<http://www.smsglobal.com/docs/HTTP-2WAY.pdf>.
-
-There are other API's available (L<http://www.smsglobal.com/en-au/technology/developers.php>). Among the more fully featured
-is the SOAP interface (L<http://www.smsglobal.com/docs/SOAP.pdf>).
-
-Also note that sending to a list of recipients is possible, but
-currently requires direct use of this driver, which can accept either a comma
-separated list, or an array reference to recipient mobile numbers.
+    use SMS::Send::SMSGlobal::HTTP;
 
     my $driver = SMS::Send::SMSGlobal::HTTP->new(
         _user => $sms_login,
@@ -294,13 +304,44 @@ separated list, or an array reference to recipient mobile numbers.
         __transport => 'https',
     );
 
+The driver can accept either an array of mobile numbers or a string containing
+a comma-separated list of mobile numbers.
+
+   my @recipients = ( '+61(4)770090099', '0419 123 456' );
+
    my $sent = $driver->send_sms( _from => $caller_id,
-                                 to => \@recipient_mobile_nos );
+                                 to    => \@recipients,
+                                 text  => 'Hi everyone!',
+                                );
+
+The return value is the number of messages queued for delivery to individual
+recipients.
+
+C<__responses>, contains sucesss or error codes for each recipient.
+
+    if ( $sent < scalar @recipients ) {
+	warn "failed to send to some participants";
+
+	my @responses = @{ $driver->__responses || [] };
+	for ( @responses ) {
+	    warn $_ if m{ERROR};
+	}
+    }
+
+=head1 AUTHOR
+
+David Warring, C<< <david.warring at gmail.com> >>
+
+=head1 BUGS AND LIMITATIONS
+
+This module only attempts to implement the simple HTTP/S C<sendsms> command as
+described in L<http://www.smsglobal.com/docs/HTTP-2WAY.pdf> and L<http://www.smsglobal.com/docs/HTTP-2WAY.pdf>. 
+
+There are other API's available (L<http://www.smsglobal.com/en-au/technology/developers.php>). Among the more fully featured are the SOAP interface (L<http://www.smsglobal.com/docs/SOAP.pdf>) and SMPP (L<http://www.smsglobal.com/docs/SMPP.pdf>).
 
 Please report any bugs or feature requests to C<bug-sms-send-au-smsglobal at rt.cpan.org>, or through
 the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=SMS-Send-SMSGlobal-HTTP>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
-
 
 =head1 SUPPORT
 
