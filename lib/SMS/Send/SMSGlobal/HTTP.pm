@@ -26,11 +26,11 @@ SMS::Send::SMSGlobal::HTTP - SMS::Send SMSGlobal.com Driver
 
 =head1 VERSION
 
-VERSION 0.09
+VERSION 0.10
 
 =cut
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 =head1 DESCRIPTION
 
@@ -102,7 +102,7 @@ sub new {
 The recipient number. This can either be an international number (prefixed
 with C<+>) or an local number (with a leading C<0>).
 
-In the case of a local number, the country will be determined by your
+Note: In the case of a local number, the country will be determined by your
 C<Default SMS Country> Locale Setting in your account preferences.
 
 =item C<text>
@@ -125,7 +125,7 @@ Note: Each chunk is metered as a separate message.
 =item C<_scheduledtime>
 
 Lets you delay sending of messages. This can be either (a) a string formatted
-as C<yyyy-mm-dd hh:mm:ss> or (b) a date/time object that support C<ymd> and
+as C<yyyy-mm-dd hh:mm:ss> or (b) an object that supports C<ymd> and
 C<hms> methods. For example L<DateTime> or L<Time::Piece> objects.
 
 Note: Your date times need to to be specified in the same timezone as set in
@@ -376,7 +376,7 @@ L<http://search.cpan.org/dist/SMS-Send-SMSGlobal-HTTP/>
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2011 David Warring.
+Copyright 2011-2012 David Warring.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of either: the GNU General Public License as published
