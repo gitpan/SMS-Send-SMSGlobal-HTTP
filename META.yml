@@ -38,4 +38,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: https://github.com/dwarring/SMS-Send-SMSGlobal-HTTP.git
-version: 0.11
+version: 0.12
