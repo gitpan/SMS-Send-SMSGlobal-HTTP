@@ -26,11 +26,11 @@ SMS::Send::SMSGlobal::HTTP - SMS::Send SMSGlobal.com Driver
 
 =head1 VERSION
 
-VERSION 0.10
+VERSION 0.11
 
 =cut
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 =head1 DESCRIPTION
 
@@ -235,15 +235,15 @@ sub send_sms {
 	}
     }
 
-    my $address = $msg->__address || 'http://smsglobal.com/http-api.php';
+    my $address = $msg->__address || 'http://www.smsglobal.com/http-api.php';
 
     if (my $transport = $msg->__transport) {
 
 	if ($transport eq 'http') {
-	    $address =~ s{^https:}{http:};
+	    $address =~ s{^https:}{http:}i;
 	}
 	elsif ($transport eq 'https') {
-	    $address =~ s{^http:}{https:};
+	    $address =~ s{^http:}{https:}i;
 	}
 	else {
 	    die "transport '$transport': not 'http' or 'https'" 
@@ -254,12 +254,7 @@ sub send_sms {
 
     my $req = POST($address => [ %{ \%http_params } ]);
 
-    my $response = try {
-	$msg->__ua->request($req);
-    }
-    catch {
-	die $_;
-    };
+    my $response = $msg->__ua->request($req);
 
     die "unable to get response"
 	unless $response;
@@ -386,4 +381,4 @@ See http://dev.perl.org/licenses/ for more information.
 
 =cut
 
-1; # End of SMS::Send::SMSGlobal
+1; # End of SMS::Send::SMSGlobal::HTTP
